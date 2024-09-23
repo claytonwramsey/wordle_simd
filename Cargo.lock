@@ -3,14 +3,5 @@
 version = 3
 
 [[package]]
-name = "nohash-hasher"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
-
-[[package]]
 name = "wordle"
 version = "0.1.0"
-dependencies = [
- "nohash-hasher",
-]

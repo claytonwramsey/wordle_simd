@@ -1,10 +1,7 @@
 use std::{
-    collections::HashMap,
     fs::File,
     io::{BufRead, BufReader},
 };
-
-use nohash_hasher::BuildNoHashHasher;
 
 type Grade = u16;
 type Word = u32;
@@ -60,6 +57,8 @@ fn word_from_str(s: &[u8]) -> Option<Word> {
     Some(w)
 }
 
+const N_GRADES: usize = 0b1010101011;
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = std::env::args().collect::<Vec<_>>();
     if args.len() < 3 {
@@ -70,22 +69,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|w| word_from_str(w?.as_bytes()).ok_or("invalid word".into()))
         .collect::<Result<Vec<Word>, Box<dyn std::error::Error>>>()?;
 
+    let mut word_count = [0u8; N_GRADES];
     for s in BufReader::new(File::open(&args[2])?).lines() {
         let s = s?;
         let word = word_from_str(s.as_bytes()).ok_or("bad word")?;
-        let mut word_count =
-            HashMap::with_capacity_and_hasher(answers.len(), BuildNoHashHasher::<Grade>::default());
         // let mut word_count = IntMap::with_capacity(answers.len());
         for &answer in &answers {
-            *word_count.entry(grade(word, answer)).or_insert(0) += 1;
+            word_count[grade(word, answer) as usize] += 1;
         }
 
         let info = word_count
             .iter()
-            .map(|(_, &n)| (n as f64).log2() * n as f64)
+            .filter(|&&n| n > 0)
+            .map(|&n| (n as f64).log2() * n as f64)
             .sum::<f64>()
             / answers.len() as f64;
 
+        word_count = [0; N_GRADES];
         println!("{s}: {info}");
     }
     Ok(())
