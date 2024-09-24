@@ -69,7 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|w| word_from_str(w?.as_bytes()).ok_or("invalid word".into()))
         .collect::<Result<Vec<Word>, Box<dyn std::error::Error>>>()?;
 
-    let mut word_count = [0u8; N_GRADES];
+    let mut word_count = [0u16; N_GRADES];
     for s in BufReader::new(File::open(&args[2])?).lines() {
         let s = s?;
         let word = word_from_str(s.as_bytes()).ok_or("bad word")?;
