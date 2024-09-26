@@ -6,6 +6,8 @@ use std::{
     io::{BufRead, BufReader},
     simd::{prelude::*, LaneCount, Simd, SupportedLaneCount},
     str,
+    sync::atomic::{AtomicU64, AtomicUsize, Ordering},
+    thread::{available_parallelism, scope},
 };
 
 type Grade = u16;
@@ -147,7 +149,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut words_human: Vec<[u8; 5]> = Vec::with_capacity(12948);
     let mut words = Vec::with_capacity(12948);
-    let initial_entropy = (answers.len() as f64).log2();
+    let initial_entropy = (answers.len() as f32).log2();
     let mut word_bits_left = Vec::with_capacity(12948);
 
     for s in BufReader::new(File::open(&args[2])?).lines() {
@@ -164,53 +166,81 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     word_bits_left.sort_unstable_by(|&(_, e1), &(_, e2)| e1.partial_cmp(&e2).unwrap());
 
-    let mut best_entropy = word_bits_left[0].1;
-    let mut opener_value = Vec::with_capacity(words.len() * (words.len() - 1) / 2);
-    let mut possible_solns: [Vec<Word>; N_GRADES] = array::from_fn(|_| Vec::new()); // map from grades to possible solns
-    for (i, &(w0, el0)) in word_bits_left.iter().enumerate() {
-        let (prefix, simds, suffix) = answers.as_simd();
-        for &answer in prefix {
-            possible_solns[grade(w0, answer) as usize].push(answer);
-        }
-        for &answer in suffix {
-            possible_solns[grade(w0, answer) as usize].push(answer);
-        }
-        for &answer in simds {
-            let grades: Simd<usize, L> = gradel(Simd::splat(w0), answer).cast();
-            for (graded, answer) in grades.to_array().into_iter().zip(answer.to_array()) {
-                possible_solns[graded].push(answer);
-            }
-        }
+    let best_entropy = AtomicU64::new((word_bits_left[0].1 * 1e7) as u64);
+    let next_start = AtomicUsize::new(0);
 
-        for &(w1, el1) in &word_bits_left[..i] {
-            if el0 - (initial_entropy - el1) >= best_entropy {
-                // cannot get extra info out
-                // we sorted the words, so we won't have any more anyway
+    println!("n_threads = {}", available_parallelism().unwrap());
+    let do_work = |_tid: usize| {
+        let mut opener_value = Vec::with_capacity(
+            words.len() * (words.len() - 1) / (2 * available_parallelism().unwrap().get()),
+        );
+        let mut possible_solns: [Vec<Word>; N_GRADES] = array::from_fn(|_| Vec::new()); // map from grades to possible solns
+        loop {
+            let i = next_start.fetch_add(1, Ordering::Relaxed);
+            if i >= words.len() {
                 break;
             }
+            let (w0, el0) = word_bits_left[i];
+            // println!(
+            //     "thread {tid} start word {}",
+            //     str::from_utf8(&str_from_word(w0)).unwrap()
+            // );
 
-            let mut rem_entropy = 0.0;
-            for possibles in possible_solns.iter().filter(|v| v.len() > 1) {
-                rem_entropy += entropy_after(w1, possibles) * possibles.len() as f64
+            let (prefix, simds, suffix) = answers.as_simd();
+            for &answer in prefix {
+                possible_solns[grade(w0, answer) as usize].push(answer);
             }
-            rem_entropy /= answers.len() as f64;
-            if rem_entropy < best_entropy {
-                best_entropy = rem_entropy;
+            for &answer in suffix {
+                possible_solns[grade(w0, answer) as usize].push(answer);
             }
-            println!(
-                "{}, {}: {rem_entropy}",
-                str::from_utf8(&str_from_word(w0)).unwrap(),
-                str::from_utf8(&str_from_word(w1)).unwrap()
-            );
+            for &answer in simds {
+                let grades: Simd<usize, L> = gradel(Simd::splat(w0), answer).cast();
+                for (graded, answer) in grades.to_array().into_iter().zip(answer.to_array()) {
+                    possible_solns[graded].push(answer);
+                }
+            }
 
-            opener_value.push(((w0, w1), rem_entropy));
-        }
+            for &(w1, el1) in &word_bits_left[..i] {
+                if el0 - (initial_entropy - el1)
+                    >= best_entropy.load(Ordering::Relaxed) as f32 / 1e7
+                {
+                    // cannot get extra info out
+                    // we sorted the words, so we won't have any more anyway
+                    break;
+                }
 
-        // clean up but don't free the memory
-        for v in &mut possible_solns {
-            v.clear();
+                let mut rem_entropy = 0.0;
+                for possibles in possible_solns.iter().filter(|v| v.len() > 1) {
+                    rem_entropy += entropy_after(w1, possibles) * possibles.len() as f32
+                }
+                rem_entropy /= answers.len() as f32;
+                best_entropy.fetch_max((rem_entropy * 1e7) as u64, Ordering::Relaxed);
+                // println!(
+                //     "{}, {}: {rem_entropy}",
+                //     str::from_utf8(&str_from_word(w0)).unwrap(),
+                //     str::from_utf8(&str_from_word(w1)).unwrap()
+                // );
+
+                opener_value.push(((w0, w1), rem_entropy));
+            }
+
+            // clean up but don't free the memory
+            for v in &mut possible_solns {
+                v.clear();
+            }
         }
-    }
+        opener_value
+    };
+
+    let mut opener_value = Vec::with_capacity(words.len() * (words.len() - 1) / 2);
+    scope(|s| {
+        let handles = (0..available_parallelism().unwrap().get())
+            .map(|tid| s.spawn(move || do_work(tid)))
+            .collect::<Vec<_>>();
+        for handle in handles {
+            opener_value.extend(handle.join().unwrap());
+        }
+    });
 
     opener_value.sort_unstable_by(|&(_, e1), &(_, e2)| e1.partial_cmp(&e2).unwrap());
     println!("Top 10:");
@@ -224,7 +254,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn entropy_after(word: Word, solns: &[Word]) -> f64 {
+fn entropy_after(word: Word, solns: &[Word]) -> f32 {
     let mut word_count = [0u16; N_GRADES];
     let (prefix, simds, suffix) = solns.as_simd();
     for &answer in prefix {
@@ -240,11 +270,11 @@ fn entropy_after(word: Word, solns: &[Word]) -> f64 {
         }
     }
     word_count
-        .iter()
-        .filter(|&&n| n > 0)
-        .map(|&n| (n as f64).log2() * n as f64)
-        .sum::<f64>()
-        / solns.len() as f64
+        .into_iter()
+        .filter(|&n| n > 1)
+        .map(|n| (n as f32).log2() * n as f32)
+        .sum::<f32>()
+        / solns.len() as f32
 }
 
 #[cfg(test)]
