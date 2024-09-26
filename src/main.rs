@@ -5,6 +5,7 @@ use std::{
     fs::File,
     io::{BufRead, BufReader},
     simd::{prelude::*, LaneCount, Simd, SupportedLaneCount},
+    str,
 };
 
 type Grade = u16;
@@ -144,36 +145,106 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|w| word_from_str(w?.as_bytes()).ok_or("invalid word".into()))
         .collect::<Result<Vec<Word>, Box<dyn std::error::Error>>>()?;
 
-    let mut word_count = [0u16; N_GRADES];
+    let mut words_human: Vec<[u8; 5]> = Vec::with_capacity(12948);
+    let mut words = Vec::with_capacity(12948);
+    let initial_entropy = (answers.len() as f64).log2();
+    let mut word_bits_left = Vec::with_capacity(12948);
+
     for s in BufReader::new(File::open(&args[2])?).lines() {
         let s = s?;
-        let word = word_from_str(s.as_bytes()).ok_or("bad word")?;
-        // let mut word_count = IntMap::with_capacity(answers.len());
+        if s.len() != 5 || !s.bytes().all(|b| b.is_ascii_lowercase()) {
+            return Err("bad word".into());
+        }
+        let sb = s.as_bytes();
+        words_human.push(array::from_fn(|i| sb[i]));
+        let word = unsafe { word_from_str(sb).unwrap_unchecked() };
+        words.push(word);
+        word_bits_left.push((word, entropy_after(word, &answers)));
+    }
+
+    word_bits_left.sort_unstable_by(|&(_, e1), &(_, e2)| e1.partial_cmp(&e2).unwrap());
+
+    let mut best_entropy = word_bits_left[0].1;
+    let mut opener_value = Vec::with_capacity(words.len() * (words.len() - 1) / 2);
+    let mut possible_solns: [Vec<Word>; N_GRADES] = array::from_fn(|_| Vec::new()); // map from grades to possible solns
+    for (i, &(w0, el0)) in word_bits_left.iter().enumerate() {
         let (prefix, simds, suffix) = answers.as_simd();
         for &answer in prefix {
-            word_count[grade(word, answer) as usize] += 1;
+            possible_solns[grade(w0, answer) as usize].push(answer);
         }
         for &answer in suffix {
-            word_count[grade(word, answer) as usize] += 1;
+            possible_solns[grade(w0, answer) as usize].push(answer);
         }
         for &answer in simds {
-            let grades: Simd<usize, L> = gradel(Simd::splat(word), answer).cast();
-            for graded in grades.to_array() {
-                word_count[graded] += 1;
+            let grades: Simd<usize, L> = gradel(Simd::splat(w0), answer).cast();
+            for (graded, answer) in grades.to_array().into_iter().zip(answer.to_array()) {
+                possible_solns[graded].push(answer);
             }
         }
 
-        let info = word_count
-            .iter()
-            .filter(|&&n| n > 0)
-            .map(|&n| (n as f64).log2() * n as f64)
-            .sum::<f64>()
-            / answers.len() as f64;
+        for &(w1, el1) in &word_bits_left[..i] {
+            if el0 - (initial_entropy - el1) >= best_entropy {
+                // cannot get extra info out
+                // we sorted the words, so we won't have any more anyway
+                break;
+            }
 
-        word_count = [0; N_GRADES];
-        println!("{s}: {info}");
+            let mut rem_entropy = 0.0;
+            for possibles in possible_solns.iter().filter(|v| v.len() > 1) {
+                rem_entropy += entropy_after(w1, possibles) * possibles.len() as f64
+            }
+            rem_entropy /= answers.len() as f64;
+            if rem_entropy < best_entropy {
+                best_entropy = rem_entropy;
+            }
+            println!(
+                "{}, {}: {rem_entropy}",
+                str::from_utf8(&str_from_word(w0)).unwrap(),
+                str::from_utf8(&str_from_word(w1)).unwrap()
+            );
+
+            opener_value.push(((w0, w1), rem_entropy));
+        }
+
+        // clean up but don't free the memory
+        for v in &mut possible_solns {
+            v.clear();
+        }
+    }
+
+    opener_value.sort_unstable_by(|&(_, e1), &(_, e2)| e1.partial_cmp(&e2).unwrap());
+    println!("Top 10:");
+    for ((w0, w1), entropy_left) in opener_value.into_iter().take(10) {
+        println!(
+            "{}, {}: {entropy_left}",
+            str::from_utf8(&str_from_word(w0)).unwrap(),
+            str::from_utf8(&str_from_word(w1)).unwrap()
+        );
     }
     Ok(())
+}
+
+fn entropy_after(word: Word, solns: &[Word]) -> f64 {
+    let mut word_count = [0u16; N_GRADES];
+    let (prefix, simds, suffix) = solns.as_simd();
+    for &answer in prefix {
+        word_count[grade(word, answer) as usize] += 1;
+    }
+    for &answer in suffix {
+        word_count[grade(word, answer) as usize] += 1;
+    }
+    for &answer in simds {
+        let grades: Simd<usize, L> = gradel(Simd::splat(word), answer).cast();
+        for graded in grades.to_array() {
+            word_count[graded] += 1;
+        }
+    }
+    word_count
+        .iter()
+        .filter(|&&n| n > 0)
+        .map(|&n| (n as f64).log2() * n as f64)
+        .sum::<f64>()
+        / solns.len() as f64
 }
 
 #[cfg(test)]
