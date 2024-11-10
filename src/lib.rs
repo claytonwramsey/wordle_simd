@@ -8,6 +8,9 @@ use std::{
 pub type Grade = u16;
 pub type Word = u32;
 
+pub mod naive;
+pub mod sensible;
+
 const GREEN: u16 = 0b10;
 const YELLOW: u16 = 0b01;
 const BLACK: u16 = 0b00;

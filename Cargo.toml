@@ -8,10 +8,3 @@ lto = true
 debug = true
 
 [dependencies]
-
-[dev-dependencies]
-criterion = "0.5.1"
-
-[[bench]]
-name = "grade1"
-harness = false
