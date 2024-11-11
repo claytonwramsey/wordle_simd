@@ -24,13 +24,9 @@ pub fn grade(w: &Word, sol: &Word) -> Grade {
         }
     }
 
-    for (wc, g) in w
-        .chars()
-        .zip(&mut grade)
-        .filter(|(_, g)| **g == Color::Black)
-    {
+    for (wc, g) in w.chars().zip(&mut grade) {
         if let Some(c) = bank.get_mut(&wc) {
-            if *c > 0 {
+            if *c > 0 && *g == Color::Black {
                 *c -= 1;
                 *g = Color::Yellow;
             }

@@ -53,10 +53,10 @@ fn make_bench<W>(
     });
 
     println!("{name}: find best word: {best_word_time:?}");
-    println!(
-        "{name}: gives best word {:?}",
-        words_file.lines().nth(best_word_id).unwrap()
-    );
+    // println!(
+    //     "{name}: gives best word {:?}",
+    //     words_file.lines().nth(best_word_id).unwrap()
+    // );
 }
 
 fn main() {
@@ -76,7 +76,7 @@ fn main() {
     });
     make_bench(
         "sensible",
-        &(|s| std::array::from_fn(|i| s.as_bytes()[i] - b'a')),
+        &(|s| std::array::from_fn(|i| s.as_bytes()[i])),
         &|w, solns| {
             let mut word_count = HashMap::<_, usize>::new();
             for &soln in solns {
@@ -114,9 +114,14 @@ fn main() {
         &entropy_after::<1>,
     );
     make_bench(
+        "packed simd(x2)",
+        &|s| word_from_str(s.as_bytes()).unwrap(),
+        &entropy_after::<2>,
+    );
+    make_bench(
         "packed simd(x4)",
         &|s| word_from_str(s.as_bytes()).unwrap(),
-        &entropy_after::<8>,
+        &entropy_after::<4>,
     );
     make_bench(
         "packed simd(x8)",

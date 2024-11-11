@@ -57,7 +57,7 @@ where
     // split yellow bank since u128 not supported
     let mut yellow_lo = Simd::<u64, L>::splat(0);
     let mut yellow_hi = yellow_lo;
-    let mut grade = Simd::<u16, L>::splat(0);
+    let mut grade = Simd::splat(0);
     let mut guess2 = words;
     let mut soln2 = solns;
 

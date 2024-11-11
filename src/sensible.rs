@@ -1,4 +1,3 @@
-/// assumes letters are 0-26, no element may be 26 or greater
 type Word = [u8; 5];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Hash)]
@@ -11,7 +10,7 @@ pub enum Color {
 pub type Grade = [Color; 5];
 
 pub fn grade(w: Word, soln: Word) -> Grade {
-    let mut bank = [0u8; 26];
+    let mut bank = [0u8; 256];
     let mut grade = [Color::Black; 5];
 
     for ((wc, sc), g) in w.into_iter().zip(soln).zip(&mut grade) {
