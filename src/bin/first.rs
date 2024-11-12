@@ -53,10 +53,10 @@ fn make_bench<W>(
     });
 
     println!("{name}: find best word: {best_word_time:?}");
-    // println!(
-    //     "{name}: gives best word {:?}",
-    //     words_file.lines().nth(best_word_id).unwrap()
-    // );
+    println!(
+        "{name}: gives best word {:?}",
+        words_file.lines().nth(best_word_id).unwrap()
+    );
 }
 
 fn main() {

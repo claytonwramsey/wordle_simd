@@ -12,7 +12,7 @@ use std::{
 
 use wordle::{str_from_word, word_from_str, Word, N_GRADES};
 
-const L: usize = 4;
+const L: usize = 8;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = std::env::args().collect::<Vec<_>>();
