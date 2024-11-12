@@ -3,6 +3,7 @@
 use std::{
     collections::HashMap,
     fs::File,
+    hint::black_box,
     io::{BufRead, BufReader, Read},
     str,
     time::{Duration, Instant},
@@ -52,11 +53,13 @@ fn make_bench<W>(
         best_word_id
     });
 
+    let _ = black_box((best_word_id, words_conv_time, ans_conv_time));
+
     println!("{name}: find best word: {best_word_time:?}");
-    println!(
-        "{name}: gives best word {:?}",
-        words_file.lines().nth(best_word_id).unwrap()
-    );
+    // println!(
+    //     "{name}: gives best word {:?}",
+    //     words_file.lines().nth(best_word_id).unwrap()
+    // );
 }
 
 fn main() {
@@ -109,33 +112,54 @@ fn main() {
         },
     );
     make_bench(
-        "packed simd(x1)",
+        "squeeze",
         &|s| word_from_str(s.as_bytes()).unwrap(),
-        &wordle::packed::entropy_after::<1>,
+        &|w, solns| {
+            let mut word_count = [0u16; wordle::N_GRADES];
+            for &answer in solns {
+                word_count[wordle::squeeze::grade(w, answer) as usize] += 1;
+            }
+            word_count
+                .into_iter()
+                .filter(|&n| n > 1)
+                .map(|n| (n as f32).log2() * n as f32)
+                .sum::<f32>()
+                / solns.len() as f32
+        },
     );
     make_bench(
-        "packed simd(x2)",
+        "squeeze simd(x1)",
         &|s| word_from_str(s.as_bytes()).unwrap(),
-        &wordle::packed::entropy_after::<2>,
+        &wordle::squeeze::entropy_after::<1>,
     );
     make_bench(
-        "packed simd(x4)",
+        "squeeze simd(x2)",
         &|s| word_from_str(s.as_bytes()).unwrap(),
-        &wordle::packed::entropy_after::<4>,
+        &wordle::squeeze::entropy_after::<2>,
     );
     make_bench(
-        "packed simd(x8)",
+        "squeeze simd(x4)",
         &|s| word_from_str(s.as_bytes()).unwrap(),
-        &wordle::packed::entropy_after::<8>,
+        &wordle::squeeze::entropy_after::<4>,
     );
     make_bench(
-        "packed simd(x16)",
+        "squeeze simd(x8)",
         &|s| word_from_str(s.as_bytes()).unwrap(),
-        &wordle::packed::entropy_after::<16>,
+        &wordle::squeeze::entropy_after::<8>,
     );
     make_bench(
-        "packed simd(x32)",
+        "squeeze simd(x16)",
         &|s| word_from_str(s.as_bytes()).unwrap(),
-        &wordle::packed::entropy_after::<32>,
+        &wordle::squeeze::entropy_after::<16>,
+    );
+    make_bench(
+        "squeeze simd(x32)",
+        &|s| word_from_str(s.as_bytes()).unwrap(),
+        &wordle::squeeze::entropy_after::<32>,
+    );
+    make_bench(
+        "squeeze simd(x64)",
+        &|s| word_from_str(s.as_bytes()).unwrap(),
+        &wordle::squeeze::entropy_after::<64>,
     );
 }

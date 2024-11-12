@@ -7,7 +7,7 @@ use std::simd::{
 use crate::{Grade, Word, BLACK, GREEN, N_GRADES, YELLOW};
 
 pub fn grade(guess: Word, soln: Word) -> Grade {
-    let mut yellow_bank = 0u128;
+    let mut yellow_bank = 0u64;
     let mut grade = 0u16;
     let mut guess2 = guess;
     let mut soln2 = soln;
@@ -18,7 +18,7 @@ pub fn grade(guess: Word, soln: Word) -> Grade {
             grade |= GREEN << 10;
         } else {
             let sc = soln2 & 0x1f;
-            yellow_bank += 1 << (3 * sc);
+            yellow_bank += 1 << (2 * sc);
         }
         grade >>= 2;
         guess2 >>= 5;
@@ -28,9 +28,9 @@ pub fn grade(guess: Word, soln: Word) -> Grade {
     for i in 0..5 {
         let c = (guess >> (5 * i)) & 0x1f;
         if grade & (0b11 << (2 * i)) == BLACK {
-            let nyellow = (yellow_bank >> (3 * c)) & 0b111;
+            let nyellow = (yellow_bank >> (2 * c)) & 0b11;
             if nyellow > 0 {
-                yellow_bank -= 1 << (3 * c);
+                yellow_bank -= 1 << (2 * c);
                 grade |= YELLOW << (2 * i);
             }
         }
@@ -44,30 +44,23 @@ where
     LaneCount<L>: SupportedLaneCount,
 {
     // split yellow bank since u128 not supported
-    let mut yellows = [Simd::<u32, L>::splat(0); 3];
+    let mut yellows = [Simd::<u32, L>::splat(0); 2];
     let mut grade = Simd::splat(0);
     let mut guess2 = words;
     let mut soln2 = solns;
 
-    let ten = Simd::splat(10);
-    let twenty = Simd::splat(20);
+    let fifteen = Simd::splat(15);
     for _ in 0..5 {
         let matches_bottom_5 = ((guess2 ^ soln2) & Simd::splat(0x1f)).simd_eq(Simd::splat(0));
         grade |= matches_bottom_5
             .cast()
             .select(Simd::splat((GREEN as u32) << 10), Simd::splat(BLACK as u32));
         let sc = soln2 & Simd::splat(0x1f);
-        let is_first_ten = sc.simd_lt(ten);
-        let is_ten_twenty = !is_first_ten & sc.simd_lt(twenty);
-        let is_last_ten = sc.simd_ge(twenty);
-        yellows[0] += (!matches_bottom_5 & is_first_ten)
-            .select(Simd::splat(1) << (Simd::splat(3) * sc), Simd::splat(0));
-        yellows[1] += (!matches_bottom_5 & is_ten_twenty).select(
-            Simd::splat(1) << (Simd::splat(3) * (sc - ten)),
-            Simd::splat(0),
-        );
-        yellows[2] += (!matches_bottom_5 & is_last_ten).select(
-            Simd::splat(1) << (Simd::splat(3) * (sc - twenty)),
+        let is_first_fifteen = sc.simd_lt(fifteen);
+        yellows[0] += (!matches_bottom_5 & is_first_fifteen)
+            .select(Simd::splat(1) << (Simd::splat(2) * sc), Simd::splat(0));
+        yellows[1] += (!matches_bottom_5 & !is_first_fifteen).select(
+            Simd::splat(1) << (Simd::splat(2) * (sc - fifteen)),
             Simd::splat(0),
         );
         grade >>= 2;
@@ -77,28 +70,24 @@ where
 
     for i in 0..5 {
         let c = ((words >> Simd::splat(5 * i)) & Simd::splat(0x1f)).cast();
-        let is_first_ten = c.simd_lt(ten);
-        let is_ten_twenty = !is_first_ten & c.simd_lt(twenty);
-        let is_last_ten = c.simd_ge(twenty);
-        let offset_c = is_first_ten.select(c, is_ten_twenty.select(c - ten, c - twenty));
+        let is_first_fifteen = c.simd_lt(fifteen);
+        let offset_c = is_first_fifteen.select(c, c - fifteen);
 
         let needs_yellow = (grade & Simd::splat(0b11 << (2 * i)))
             .simd_eq(Simd::splat(BLACK as u32))
             .cast();
-        let n_yellow = (is_first_ten
-            .select(yellows[0], is_ten_twenty.select(yellows[1], yellows[2]))
-            >> (Simd::splat(3) * offset_c))
-            & Simd::splat(0b111);
+        let n_yellow = (is_first_fifteen.select(yellows[0], yellows[1])
+            >> (Simd::splat(2) * offset_c))
+            & Simd::splat(0b11);
         let got_yellow = needs_yellow & (n_yellow.simd_gt(Simd::splat(0)));
 
         grade |= got_yellow
             .cast()
             .select(Simd::splat((YELLOW as u32) << (2 * i)), Simd::splat(0));
 
-        let subs = Simd::splat(1) << (Simd::splat(3) * offset_c);
-        yellows[0] -= (got_yellow & is_first_ten).select(subs, Simd::splat(0));
-        yellows[1] -= (got_yellow & is_ten_twenty).select(subs, Simd::splat(0));
-        yellows[2] -= (got_yellow & is_last_ten).select(subs, Simd::splat(0));
+        let subs = Simd::splat(1) << (Simd::splat(2) * offset_c);
+        yellows[0] -= (got_yellow & is_first_fifteen).select(subs, Simd::splat(0));
+        yellows[1] -= (got_yellow & !is_first_fifteen).select(subs, Simd::splat(0));
     }
 
     grade
@@ -163,7 +152,7 @@ mod tests {
     }
 
     #[test]
-    fn simd_4x() {
+    fn simd_4x_squeeze() {
         let words = [
             word_from_str(b"roses").unwrap(),
             word_from_str(b"horse").unwrap(),
