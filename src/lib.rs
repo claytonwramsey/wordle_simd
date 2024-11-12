@@ -8,6 +8,7 @@ pub type Word = u32;
 pub mod naive;
 pub mod packed;
 pub mod sensible;
+pub mod squeeze;
 
 const GREEN: u16 = 0b10;
 const YELLOW: u16 = 0b01;
