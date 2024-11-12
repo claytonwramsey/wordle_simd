@@ -10,7 +10,7 @@ use std::{
     thread::{available_parallelism, scope},
 };
 
-use wordle::{entropy_after, grade, gradel, str_from_word, word_from_str, Word, N_GRADES};
+use wordle::{str_from_word, word_from_str, Word, N_GRADES};
 
 const L: usize = 4;
 
@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         words_human.push(array::from_fn(|i| sb[i]));
         let word = unsafe { word_from_str(sb).unwrap_unchecked() };
         words.push(word);
-        word_bits_left.push((word, entropy_after::<L>(word, &answers)));
+        word_bits_left.push((word, wordle::packed::entropy_after::<L>(word, &answers)));
     }
 
     word_bits_left.sort_unstable_by(|&(_, e1), &(_, e2)| e1.partial_cmp(&e2).unwrap());
@@ -65,13 +65,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let (prefix, simds, suffix) = answers.as_simd();
             for &answer in prefix {
-                possible_solns[grade(w0, answer) as usize].push(answer);
+                possible_solns[wordle::packed::grade(w0, answer) as usize].push(answer);
             }
             for &answer in suffix {
-                possible_solns[grade(w0, answer) as usize].push(answer);
+                possible_solns[wordle::packed::grade(w0, answer) as usize].push(answer);
             }
             for &answer in simds {
-                let grades: Simd<usize, L> = gradel(Simd::splat(w0), answer).cast();
+                let grades: Simd<usize, L> = wordle::packed::gradel(Simd::splat(w0), answer).cast();
                 for (graded, answer) in grades.to_array().into_iter().zip(answer.to_array()) {
                     possible_solns[graded].push(answer);
                 }
@@ -88,7 +88,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let mut rem_entropy = 0.0;
                 for possibles in possible_solns.iter().filter(|v| v.len() > 1) {
-                    rem_entropy += entropy_after::<L>(w1, possibles) * possibles.len() as f32
+                    rem_entropy +=
+                        wordle::packed::entropy_after::<L>(w1, possibles) * possibles.len() as f32
                 }
                 rem_entropy /= answers.len() as f32;
                 best_entropy.fetch_max((rem_entropy * 1e7) as u64, Ordering::Relaxed);

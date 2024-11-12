@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use wordle::{entropy_after, word_from_str};
+use wordle::word_from_str;
 
 fn stopwatch<F: FnOnce() -> R, R>(f: F) -> (R, Duration) {
     let tic = Instant::now();
@@ -98,7 +98,7 @@ fn main() {
         &|w, solns| {
             let mut word_count = [0u16; wordle::N_GRADES];
             for &answer in solns {
-                word_count[wordle::grade(w, answer) as usize] += 1;
+                word_count[wordle::packed::grade(w, answer) as usize] += 1;
             }
             word_count
                 .into_iter()
@@ -111,36 +111,31 @@ fn main() {
     make_bench(
         "packed simd(x1)",
         &|s| word_from_str(s.as_bytes()).unwrap(),
-        &entropy_after::<1>,
+        &wordle::packed::entropy_after::<1>,
     );
     make_bench(
         "packed simd(x2)",
         &|s| word_from_str(s.as_bytes()).unwrap(),
-        &entropy_after::<2>,
+        &wordle::packed::entropy_after::<2>,
     );
     make_bench(
         "packed simd(x4)",
         &|s| word_from_str(s.as_bytes()).unwrap(),
-        &entropy_after::<4>,
+        &wordle::packed::entropy_after::<4>,
     );
     make_bench(
         "packed simd(x8)",
         &|s| word_from_str(s.as_bytes()).unwrap(),
-        &entropy_after::<8>,
+        &wordle::packed::entropy_after::<8>,
     );
     make_bench(
         "packed simd(x16)",
         &|s| word_from_str(s.as_bytes()).unwrap(),
-        &entropy_after::<16>,
+        &wordle::packed::entropy_after::<16>,
     );
     make_bench(
         "packed simd(x32)",
         &|s| word_from_str(s.as_bytes()).unwrap(),
-        &entropy_after::<32>,
-    );
-    make_bench(
-        "packed simd(x64)",
-        &|s| word_from_str(s.as_bytes()).unwrap(),
-        &entropy_after::<32>,
+        &wordle::packed::entropy_after::<32>,
     );
 }
