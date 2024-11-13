@@ -49,18 +49,18 @@ where
     let mut guess2 = words;
     let mut soln2 = solns;
 
-    let fifteen = Simd::splat(15);
+    let sixteen = Simd::splat(16);
     for _ in 0..5 {
         let matches_bottom_5 = ((guess2 ^ soln2) & Simd::splat(0x1f)).simd_eq(Simd::splat(0));
         grade |= matches_bottom_5
             .cast()
             .select(Simd::splat((GREEN as u32) << 10), Simd::splat(BLACK as u32));
         let sc = soln2 & Simd::splat(0x1f);
-        let is_first_fifteen = sc.simd_lt(fifteen);
-        yellows[0] += (!matches_bottom_5 & is_first_fifteen)
+        let is_first_sixteen = sc.simd_lt(sixteen);
+        yellows[0] += (!matches_bottom_5 & is_first_sixteen)
             .select(Simd::splat(1) << (Simd::splat(2) * sc), Simd::splat(0));
-        yellows[1] += (!matches_bottom_5 & !is_first_fifteen).select(
-            Simd::splat(1) << (Simd::splat(2) * (sc - fifteen)),
+        yellows[1] += (!matches_bottom_5 & !is_first_sixteen).select(
+            Simd::splat(1) << (Simd::splat(2) * (sc - sixteen)),
             Simd::splat(0),
         );
         grade >>= 2;
@@ -70,13 +70,13 @@ where
 
     for i in 0..5 {
         let c = ((words >> Simd::splat(5 * i)) & Simd::splat(0x1f)).cast();
-        let is_first_fifteen = c.simd_lt(fifteen);
-        let offset_c = is_first_fifteen.select(c, c - fifteen);
+        let is_first_sixteen = c.simd_lt(sixteen);
+        let offset_c = is_first_sixteen.select(c, c - sixteen);
 
         let needs_yellow = (grade & Simd::splat(0b11 << (2 * i)))
             .simd_eq(Simd::splat(BLACK as u32))
             .cast();
-        let n_yellow = (is_first_fifteen.select(yellows[0], yellows[1])
+        let n_yellow = (is_first_sixteen.select(yellows[0], yellows[1])
             >> (Simd::splat(2) * offset_c))
             & Simd::splat(0b11);
         let got_yellow = needs_yellow & (n_yellow.simd_gt(Simd::splat(0)));
@@ -86,8 +86,8 @@ where
             .select(Simd::splat((YELLOW as u32) << (2 * i)), Simd::splat(0));
 
         let subs = Simd::splat(1) << (Simd::splat(2) * offset_c);
-        yellows[0] -= (got_yellow & is_first_fifteen).select(subs, Simd::splat(0));
-        yellows[1] -= (got_yellow & !is_first_fifteen).select(subs, Simd::splat(0));
+        yellows[0] -= (got_yellow & is_first_sixteen).select(subs, Simd::splat(0));
+        yellows[1] -= (got_yellow & !is_first_sixteen).select(subs, Simd::splat(0));
     }
 
     grade
