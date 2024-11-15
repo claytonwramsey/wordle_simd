@@ -1,6 +1,9 @@
 #![feature(portable_simd)]
 
-use std::array;
+use std::{
+    array,
+    time::{Duration, Instant},
+};
 
 pub type Grade = u16;
 pub type Word = u32;
@@ -32,4 +35,10 @@ pub fn word_from_str(s: &[u8]) -> Option<Word> {
 
 pub fn str_from_word(word: Word) -> [u8; 5] {
     array::from_fn(|i| ((word >> (5 * i)) & 0x1f) as u8 + b'a')
+}
+
+pub fn stopwatch<F: FnOnce() -> R, R>(f: F) -> (R, Duration) {
+    let tic = Instant::now();
+    let res = f();
+    (res, Instant::now().duration_since(tic))
 }

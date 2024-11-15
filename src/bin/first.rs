@@ -8,16 +8,9 @@ use std::{
     io::{BufRead, BufReader, Read},
     str,
     thread::{available_parallelism, scope},
-    time::{Duration, Instant},
 };
 
-use wordle::word_from_str;
-
-fn stopwatch<F: FnOnce() -> R, R>(f: F) -> (R, Duration) {
-    let tic = Instant::now();
-    let res = f();
-    (res, Instant::now().duration_since(tic))
-}
+use wordle::{stopwatch, word_from_str};
 
 fn make_bench<W: Send + Sync, F: Fn(&W, &[W]) -> f32 + Send + Sync>(
     name: &str,

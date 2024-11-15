@@ -1,7 +1,6 @@
 #![feature(result_flattening)]
 
 use std::{
-    cmp::max,
     fs::File,
     io::{BufRead, BufReader},
 };
