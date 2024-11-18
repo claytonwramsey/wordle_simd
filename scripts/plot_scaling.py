@@ -11,10 +11,9 @@ def main():
     df = pd.read_csv(sys.argv[1], sep=',', header=None)
     for l in df[0].unique():
         df_l = df.loc[df[0] == l, :]
-        plt.plot(df_l[1], df_l[2] / 1e9, label=f"L={l}")
-    plt.semilogy()
+        plt.plot(df_l[1], 1e9 / df_l[2], label=f"L={l}")
     plt.xlabel("Number of threads")
-    plt.ylabel("Time taken to find best first guess")
+    plt.ylabel("Grading throughput (solns/sec)")
     plt.title("Diminishing returns from multithreading and over-laning")
     plt.legend()
     plt.savefig(sys.argv[2])
