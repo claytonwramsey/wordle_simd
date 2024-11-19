@@ -194,11 +194,12 @@ fn main() {
         1,
     );
 
+    const L: usize = 32;
     let n_threads = available_parallelism().unwrap().get();
     make_bench(
-        &format!("squeeze simd parallel(8x{n_threads})"),
+        &format!("squeeze simd parallel({n_threads}x{L})"),
         &|s| word_from_str(s.as_bytes()).unwrap(),
-        &|&w, s| wordle::squeeze::entropy_after::<8>(w, s),
+        &|&w, s| wordle::squeeze::entropy_after::<L>(w, s),
         n_threads,
     );
 }

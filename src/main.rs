@@ -1,16 +1,19 @@
 #![feature(portable_simd)]
 
+use core::str;
 use std::{
     array,
     fs::File,
     io::{BufRead, BufReader},
     simd::{prelude::*, Simd},
-    str,
     sync::atomic::{AtomicU64, AtomicUsize, Ordering},
     thread::{available_parallelism, scope},
 };
 
-use wordle::{str_from_word, word_from_str, Word, N_GRADES};
+use wordle::{
+    squeeze::{grade, gradel},
+    str_from_word, word_from_str, Word, N_GRADES,
+};
 
 const L: usize = 8;
 
@@ -51,6 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut opener_value = Vec::with_capacity(
             words.len() * (words.len() - 1) / (2 * available_parallelism().unwrap().get()),
         );
+        let (prefix, simds, suffix) = answers.as_simd::<L>();
         let mut possible_solns: [Vec<Word>; N_GRADES] = array::from_fn(|_| Vec::new()); // map from grades to possible solns
         loop {
             let i = next_start.fetch_add(1, Ordering::Relaxed);
@@ -63,18 +67,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             //     str::from_utf8(&str_from_word(w0)).unwrap()
             // );
 
-            let (prefix, simds, suffix) = answers.as_simd();
             for &answer in prefix {
-                possible_solns[wordle::squeeze::grade(w0, answer) as usize].push(answer);
+                possible_solns[grade(w0, answer) as usize].push(answer);
             }
             for &answer in suffix {
-                possible_solns[wordle::squeeze::grade(w0, answer) as usize].push(answer);
+                possible_solns[grade(w0, answer) as usize].push(answer);
             }
             for &answer in simds {
-                let grades: Simd<usize, L> =
-                    wordle::squeeze::gradel(Simd::splat(w0), answer).cast();
+                let grades = gradel(Simd::splat(w0), answer);
                 for (graded, answer) in grades.to_array().into_iter().zip(answer.to_array()) {
-                    possible_solns[graded].push(answer);
+                    possible_solns[graded as usize].push(answer);
                 }
             }
 

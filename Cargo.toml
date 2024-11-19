@@ -7,4 +7,9 @@ edition = "2021"
 lto = true
 debug = false
 
+[profile.reldeb]
+inherits = "release"
+lto = true
+debug = true
+
 [dependencies]

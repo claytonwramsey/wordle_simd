@@ -3,7 +3,7 @@
 use std::{
     fs::File,
     hint::black_box,
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader},
     simd::{LaneCount, SupportedLaneCount},
     thread::{available_parallelism, scope},
 };
@@ -13,7 +13,7 @@ use wordle::{squeeze::entropy_after, stopwatch, word_from_str, Word};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = std::env::args().collect::<Vec<_>>();
     if args.len() < 4 {
-        println!("scaling: usage: wordle <answers> <words> <outfile.csv>");
+        println!("flamegraph_scaling: usage: flamegraph_scaling <answers> <words>");
     }
 
     let solns: Vec<Word> = BufReader::new(File::open(&args[1])?)
@@ -28,32 +28,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("{} words and {} solutions", words.len(), solns.len());
 
-    let mut outfile = File::create(&args[3])?;
-    for nthreads in 1..=available_parallelism().map_or(1, |x| x.get()) {
-        write_bench::<1>(nthreads, &words, &solns, &mut outfile)?;
-        write_bench::<2>(nthreads, &words, &solns, &mut outfile)?;
-        write_bench::<4>(nthreads, &words, &solns, &mut outfile)?;
-        write_bench::<8>(nthreads, &words, &solns, &mut outfile)?;
-        write_bench::<16>(nthreads, &words, &solns, &mut outfile)?;
-        write_bench::<32>(nthreads, &words, &solns, &mut outfile)?;
-        write_bench::<64>(nthreads, &words, &solns, &mut outfile)?;
-    }
-
-    Ok(())
-}
-
-fn write_bench<const L: usize>(
-    nthreads: usize,
-    words: &[Word],
-    solns: &[Word],
-    outfile: &mut impl Write,
-) -> Result<(), Box<dyn std::error::Error>>
-where
-    LaneCount<L>: SupportedLaneCount,
-{
-    let time = benchtime::<L>(nthreads, words, solns);
-    println!("{L} lanes, {nthreads} threads; {time:?}");
-    writeln!(outfile, "{L},{nthreads},{}", time.as_nanos())?;
+    benchtime::<8>(
+        available_parallelism().map_or(1, |x| x.get()),
+        &words,
+        &solns,
+    );
     Ok(())
 }
 

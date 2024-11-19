@@ -135,7 +135,7 @@ mod tests {
             word_from_str(b"horse").unwrap(),
         );
         println!("{graded:b}");
-        assert_eq!(graded, 0b1010101010);
+        assert_eq!(graded, GREEN * 0b0101010101);
     }
 
     #[test]
