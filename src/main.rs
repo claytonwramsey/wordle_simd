@@ -95,7 +95,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         wordle::squeeze::entropy_after::<L>(w1, possibles) * possibles.len() as f32
                 }
                 rem_entropy /= answers.len() as f32;
-                best_entropy.fetch_max((rem_entropy * 1e7) as u64, Ordering::Relaxed);
+                best_entropy.fetch_min((rem_entropy * 1e7) as u64, Ordering::Relaxed);
                 // println!(
                 //     "{}, {}: {rem_entropy}",
                 //     str::from_utf8(&str_from_word(w0)).unwrap(),
