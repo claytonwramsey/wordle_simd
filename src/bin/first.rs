@@ -194,7 +194,7 @@ fn main() {
         1,
     );
 
-    const L: usize = 32;
+    const L: usize = 8;
     let n_threads = available_parallelism().unwrap().get();
     make_bench(
         &format!("squeeze simd parallel({n_threads}x{L})"),
