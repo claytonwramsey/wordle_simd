@@ -5,7 +5,7 @@ use std::{
     array,
     fs::File,
     io::{BufRead, BufReader},
-    simd::{prelude::*, Simd},
+    simd::Simd,
     sync::atomic::{AtomicU64, AtomicUsize, Ordering},
     thread::{available_parallelism, scope},
 };
@@ -125,12 +125,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     opener_value.sort_unstable_by(|&(_, e1), &(_, e2)| e1.partial_cmp(&e2).unwrap());
     println!("Top 10:");
-    for ((w0, w1), entropy_left) in opener_value.into_iter().take(10) {
+    for &((w0, w1), entropy_left) in opener_value.iter().take(10) {
         println!(
             "{}, {}: {entropy_left}",
             str::from_utf8(&str_from_word(w0)).unwrap(),
             str::from_utf8(&str_from_word(w1)).unwrap()
         );
     }
+
+    let trace_w = word_from_str(b"trace").unwrap();
+    let lions_w = word_from_str(b"lions").unwrap();
+    let (i, ent) = opener_value
+        .iter()
+        .enumerate()
+        .find_map(|(i, &((w0, w1), ent))| {
+            ((w0 == trace_w && w1 == lions_w) || (w0 == lions_w && w1 == trace_w))
+                .then_some((i, ent))
+        })
+        .unwrap();
+    println!(
+        "trace, lions is the {}-th best word with entropy {ent}",
+        i + 1
+    );
+
     Ok(())
 }
